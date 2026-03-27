@@ -1,5 +1,5 @@
 from unittest.mock import patch
-from ch_migrator import ClickHouseMigrator, schema
+from scripts.ch_migrator import ClickHouseMigrator, schema
 
 def init_migrator():
     migrator = ClickHouseMigrator(

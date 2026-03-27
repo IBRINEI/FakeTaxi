@@ -2,3 +2,6 @@ kafka-python
 faker
 
 clickhouse-connect
+dotenv
+python-dotenv
+pyspark
