@@ -7,7 +7,7 @@ import time
 from datetime import datetime
 
 logging.basicConfig(
-    filename='pipeline.log',
+    filename='../pipeline.log',
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s'
 )

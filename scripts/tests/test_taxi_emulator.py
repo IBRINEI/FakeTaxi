@@ -1,5 +1,5 @@
-from unittest.mock import patch, Mock, ANY
-from taxi_emulator import generate_single_event, get_producer
+from unittest.mock import patch, ANY
+from scripts.taxi_emulator import generate_single_event, get_producer
 
 def test_generate_single_event():
     given_generated_event = generate_single_event()
@@ -9,7 +9,7 @@ def test_generate_single_event():
                                                  'event_timestamp'}
     assert given_generated_event['status'] in ['requested', 'en_route', 'completed', 'cancelled']
 
-@patch('taxi_emulator.KafkaProducer')
+@patch('scripts.taxi_emulator.KafkaProducer')
 def test_start_sending_events(mock_producer_class):
     given_producer = get_producer()
     mock_producer_class.assert_called_once_with(bootstrap_servers='localhost:9092',

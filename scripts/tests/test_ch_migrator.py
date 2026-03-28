@@ -10,7 +10,7 @@ def init_migrator():
     )
     return migrator
 
-@patch('ch_migrator.clickhouse_connect.get_client')
+@patch('scripts.ch_migrator.clickhouse_connect.get_client')
 def test_clickhouse_migrator_init(mock_get_client):
     migrator = init_migrator()
     mock_get_client.assert_called_once_with(
@@ -20,7 +20,7 @@ def test_clickhouse_migrator_init(mock_get_client):
         password='fake_password'
     )
 
-@patch('ch_migrator.clickhouse_connect.get_client')
+@patch('scripts.ch_migrator.clickhouse_connect.get_client')
 def test_clickhouse_migrator_get_client(mock_get_client):
     given_mock_db_client = mock_get_client.return_value
     migrator = init_migrator()
