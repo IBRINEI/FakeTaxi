@@ -5,3 +5,10 @@ clickhouse-connect
 dotenv
 python-dotenv
 pyspark
+psycopg2
+apache-airflow
+SQLAlchemy
+pytest
+pandas
+boto3
+botocore
