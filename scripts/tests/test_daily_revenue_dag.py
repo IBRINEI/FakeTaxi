@@ -1,6 +1,7 @@
 import pytest
 from airflow.models import DagBag
 
+# ONLY RUN IN DOCKER
 
 @pytest.fixture(scope="session")
 def dag_bag():
