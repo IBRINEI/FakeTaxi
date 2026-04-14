@@ -12,3 +12,6 @@ pytest
 pandas
 boto3
 botocore
+fastapi
+pydantic
+requests

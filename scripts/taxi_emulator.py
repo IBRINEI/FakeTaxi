@@ -2,15 +2,19 @@ import json
 import logging
 import uuid
 from kafka import KafkaConsumer, KafkaProducer
-import random
-import time
 from datetime import datetime
+import time
+import requests
+from faker import Faker
+import random
 
 logging.basicConfig(
     filename='../pipeline.log',
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
+
+API_URL = "http://localhost:8000/api/v1/rides"
 
 
 def get_producer():
@@ -38,19 +42,18 @@ def generate_single_event() -> dict:
 
 
 def start_sending_events():
-    producer = get_producer()
-    try:
-        while True:
-            generated_event = generate_single_event()
-            producer.send('rides_topic', generated_event)
-            time.sleep(random.uniform(1, 10))
-    except KeyboardInterrupt:
-        logging.info('Stopped producer.')
-    except Exception as e:
-        logging.error(f'Error in producing event: {e}')
-    finally:
-        producer.flush()
-        producer.close()
+    while True:
+        ride_data = generate_single_event()
+        try:
+            response = requests.post(API_URL, json=ride_data)
+            if response.status_code == 200:
+                logging.info(f"Event sent successfully {ride_data['ride_id']} -> Backend -> Kafka")
+            else:
+                logging.warning(f"API validation error: {response.text}")
+        except Exception as e:
+            logging.error(f'Error in sending event: {e}')
+
+        time.sleep(random.randint(1, 5))
 
 
 if __name__ == '__main__':

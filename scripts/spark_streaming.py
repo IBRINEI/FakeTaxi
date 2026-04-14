@@ -1,10 +1,7 @@
 from dotenv import load_dotenv
-from scripts.ch_migrator import ClickHouseMigrator
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import col, from_json
-from pyspark.sql import SQLContext
 from pyspark.sql.types import *
-import pandas as pd
 import logging
 import os
 
@@ -13,6 +10,16 @@ logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
+
+load_dotenv()
+
+KAFKA_BROKER = os.getenv('KAFKA_BROKER', 'localhost:9092')
+KAFKA_TOPIC = os.getenv('KAFKA_TOPIC', 'realtime_rides')
+
+CH_HOST = os.getenv('CH_HOST', 'localhost')
+CH_PORT = int(os.getenv('CH_PORT', 8123))
+CH_USER = os.getenv('CH_USER', 'default')
+CH_PASSWORD = os.getenv('CH_PASSWORD', '')
 
 if os.name == 'nt':
     os.environ['HADOOP_HOME'] = 'C:\\hadoop'
@@ -44,6 +51,7 @@ def start_query(spark, cleaned_df):
         logging.info('Interrupt signal received, shutting down')
     except Exception as e:
         logging.error(f'Error in query: {e}')
+        raise e
     finally:
         query.stop()
         spark.stop()
@@ -60,17 +68,13 @@ def parse_and_clean_df(df):
     return cleaned_df
 
 def read_df_from_kafka(spark_session):
-    try:
-        kafka_df = (spark_session
-                    .readStream
-                    .format('kafka')
-                    .option('kafka.bootstrap.servers', 'localhost:9092')
-                    .option('subscribe', 'rides_topic')
-                    .load())
-        return kafka_df
-    except Exception as e:
-        logging.error(f'Error in reading from kafka, returning empty df: {e}')
-        return SQLContext.createDataFrame(spark_session.sparkContext.emptyRDD(), get_data_struct())
+    return (spark_session
+            .readStream
+            .format('kafka')
+            .option('kafka.bootstrap.servers', KAFKA_BROKER)
+            .option('subscribe', KAFKA_TOPIC)
+            .option('startingOffsets', 'latest')
+            .load())
 
 def parse_df(loaded_df):
     taxi_struct = get_data_struct()
@@ -96,24 +100,46 @@ def get_data_struct():
 
 
 def write_to_clickhouse(batch_df, batch_id):
-    df = batch_df.toPandas()
+    ch_creds = {
+        'host': CH_HOST,
+        'port': CH_PORT,
+        'user': CH_USER,
+        'password': CH_PASSWORD
+    }
+    batch_df.foreachPartition(lambda partition: send_partition_to_clickhouse(partition, ch_creds))
 
-    if df.empty:
+
+def send_partition_to_clickhouse(partition, creds):
+    import clickhouse_connect
+
+    data = []
+
+    for row in partition:
+        data.append([
+            row.ride_id,
+            row.driver_id,
+            row.client_id,
+            row.status,
+            row.fare_amount,
+            row.event_timestamp
+        ])
+
+    if not data:
         return
 
-    logging.info(f'Writing batch {batch_id} to ClickHouse. Length: {len(df)}')
-
-    load_dotenv()
-    migrator = ClickHouseMigrator(host='localhost',
-                                  port=8123,
-                                  user=os.getenv('CH_USER'),
-                                  password=os.getenv('CH_PASSWORD'))
-    clickhouse_client = migrator.client
     try:
-        clickhouse_client.insert_df('realtime_rides', df)
-        logging.info('Successfully inserted data to ClickHouse.')
+        client = clickhouse_connect.get_client(
+            host=creds['host'],
+            port=creds['port'],
+            username=creds['user'],
+            password=creds['password']
+        )
+
+        client.insert('realtime_rides', data, column_names=[
+            'ride_id', 'driver_id', 'client_id', 'status', 'fare_amount', 'event_timestamp'
+        ])
     except Exception as e:
-        logging.error(f'Error inserting batch into ClickHouse: {e}')
+        print(f"Error while writing partition to ClickHouse: {e}")
 
 
 if __name__ == '__main__':
