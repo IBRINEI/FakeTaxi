@@ -1,0 +1,6 @@
+airflow-provider-clickhouse
+clickhouse-connect
+apache-airflow-providers-postgres
+psycopg2-binary
+pandas
+sqlalchemy

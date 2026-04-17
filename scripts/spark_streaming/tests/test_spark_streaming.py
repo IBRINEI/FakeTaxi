@@ -1,27 +1,21 @@
 import pytest
 import json
 from pyspark.sql import SparkSession
-import sys
-import os
 
-from scripts.spark_streaming import parse_and_clean_df
+from spark_streaming import parse_and_clean_df
 
-if os.name == 'nt':
-    os.environ['HADOOP_HOME'] = 'C:\\hadoop'
-    os.environ['PATH'] = os.environ['HADOOP_HOME'] + '\\bin;' + os.environ['PATH']
-    os.environ['SPARK_LOCAL_IP'] = '127.0.0.1'
-
-os.environ['PYSPARK_PYTHON'] = sys.executable
-os.environ['PYSPARK_DRIVER_PYTHON'] = sys.executable
 
 @pytest.fixture(scope="session")
 def spark():
     spark_session = (SparkSession.builder
                      .appName("TestTaxiStreaming")
-                     .config("spark.driver.bindAddress", "127.0.0.1")
-                     .config("spark.driver.host", "127.0.0.1")
+                     .config("spark.driver.bindAddress", "0.0.0.0")
+                     .config("spark.driver.host", "0.0.0.0")
                      .master("local[1]")
                      .getOrCreate())
+
+    spark_session.sparkContext.setLogLevel("ERROR")
+
     yield spark_session
     spark_session.stop()
 

@@ -1,33 +1,28 @@
-import json
+import sys
 import logging
 import uuid
-from kafka import KafkaConsumer, KafkaProducer
 from datetime import datetime
 import time
 import requests
-from faker import Faker
 import random
+import os
+
 
 logging.basicConfig(
-    filename='../pipeline.log',
+    stream=sys.stdout,
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
 
-API_URL = "http://localhost:8000/api/v1/rides"
+API_URL = os.getenv("API_URL", "http://taxi_api_server:8000/api/v1/rides")
 
-
-def get_producer():
-    producer = KafkaProducer(bootstrap_servers='localhost:9092',
-                             value_serializer=lambda v: json.dumps(v).encode('utf-8'))
-    return producer
 
 def generate_single_event() -> dict:
     try:
         fake_event = {
             'ride_id': str(uuid.uuid4()),
             'driver_id': random.randint(1, 1000),
-            'user_id': random.randint(1, 10000),
+            'client_id': random.randint(1, 10000),
             'status': random.choice(['requested', 'en_route', 'completed', 'cancelled']),
             'fare_amount': round(random.uniform(5.0, 1000.0), 2) *
                            random.choices([-1, 1], weights=[0.01, 0.99])[0],
@@ -42,6 +37,11 @@ def generate_single_event() -> dict:
 
 
 def start_sending_events():
+    logging.info(f"Starting Taxi Emulator. Waiting 10 seconds for API to warm up...")
+    time.sleep(10)
+
+    logging.info(f"Targeting API: {API_URL}")
+
     while True:
         ride_data = generate_single_event()
         try:

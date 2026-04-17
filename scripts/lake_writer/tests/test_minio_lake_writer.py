@@ -2,6 +2,7 @@ import pytest
 import json
 from unittest.mock import patch, MagicMock
 import os, sys
+from botocore.exceptions import ClientError
 
 
 TESTS_FOLDER = os.path.dirname(os.path.abspath(__file__))
@@ -32,12 +33,9 @@ def test_consume_and_save_to_lake_batching(mock_kafka_class, mock_s3_client_func
 
     consume_and_save_to_lake()
 
-
     assert mock_s3.put_object.call_count == 1, "Only one batch must be sent!"
 
-
     called_args = mock_s3.put_object.call_args[1]
-
     assert called_args['Bucket'] == 'taxi-raw-data'
     assert called_args['ContentType'] == 'application/jsonlines'
 
@@ -50,3 +48,30 @@ def test_consume_and_save_to_lake_batching(mock_kafka_class, mock_s3_client_func
     first_record = json.loads(lines[0])
     assert first_record['ride_id'] == "ride_0"
     assert first_record['driver_id'] == 100
+
+
+@patch('minio_lake_writer.get_s3_client')
+@patch('minio_lake_writer.KafkaConsumer')
+def test_consume_and_save_error_handling(mock_kafka_class, mock_s3_client_func, caplog):
+    mock_s3 = MagicMock()
+
+    error_response = {'Error': {'Code': '500', 'Message': 'Internal Server Error'}}
+    mock_s3.put_object.side_effect = ClientError(error_response, 'PutObject')
+    mock_s3_client_func.return_value = mock_s3
+
+    mock_consumer = MagicMock()
+    mock_kafka_class.return_value = mock_consumer
+
+    fake_messages = []
+    for i in range(BATCH_SIZE):
+        msg = MagicMock()
+        msg.value = {"ride_id": f"ride_{i}"}
+        fake_messages.append(msg)
+
+    mock_consumer.__iter__.return_value = fake_messages
+
+    consume_and_save_to_lake()
+
+    assert mock_s3.put_object.call_count == 1
+
+    assert "Error while writing to MinIO" in caplog.text

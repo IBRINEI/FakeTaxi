@@ -66,15 +66,17 @@ services:
 
   # 5. Apache Airflow + Spark
   airflow:
-    build: .
+    build:
+      context: ./airflow
+      dockerfile: Dockerfile
     container_name: taxi_airflow
     env_file:
       - .env
     environment:
       - AIRFLOW__CORE__LOAD_EXAMPLES=False
+      - _AIRFLOW_WWW_USER_CREATE=true
       - _AIRFLOW_WWW_USER_USERNAME=admin
       - _AIRFLOW_WWW_USER_PASSWORD=admin
-      - _PIP_ADDITIONAL_REQUIREMENTS=pandas faker pyspark sqlalchemy psycopg2-binary kafka-python boto3 clickhouse-connect pytest
     ports:
       - "8080:8080"
     volumes:
@@ -85,3 +87,68 @@ services:
       - postgres
     networks:
       - lambda_net
+    restart: always
+
+  lake_writer:
+    build:
+      context: ./scripts/lake_writer
+      dockerfile: Dockerfile
+    container_name: taxi_lake_writer
+    env_file:
+      - .env
+    environment:
+      - KAFKA_BROKER=taxi_kafka:29092
+      - MINIO_ENDPOINT=http://minio:9000
+    depends_on:
+      - kafka
+      - minio
+    networks:
+      - lambda_net
+    restart: always
+
+  api_server:
+    build:
+      context: ./scripts/api_server
+      dockerfile: Dockerfile
+    container_name: taxi_api_server
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      - KAFKA_BROKER=taxi_kafka:29092
+    depends_on:
+      - kafka
+    networks:
+      - lambda_net
+    restart: always
+
+  spark_streaming:
+    build:
+      context: ./scripts/spark_streaming
+      dockerfile: Dockerfile
+    container_name: taxi_spark_streaming
+    env_file:
+      - .env
+    environment:
+      - KAFKA_BROKER=taxi_kafka:29092
+      - CH_HOST=clickhouse
+    depends_on:
+      - kafka
+      - clickhouse
+    networks:
+      - lambda_net
+    restart: always
+
+  taxi_emulator:
+    build:
+      context: ./scripts/taxi_emulator
+      dockerfile: Dockerfile
+    container_name: taxi_emulator
+    environment:
+      - API_URL=http://taxi_api_server:8000/api/v1/rides
+    depends_on:
+      - api_server
+    networks:
+      - lambda_net
+    restart: always

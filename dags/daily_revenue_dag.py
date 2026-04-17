@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 import os
 import sys
 
-from sqlalchemy.testing.plugin.plugin_base import logging
+import logging
 
 DAGS_FOLDER = os.path.dirname(os.path.abspath(__file__))
 
@@ -23,11 +23,7 @@ import psycopg2
 from psycopg2.extras import execute_values
 
 import logging
-logging.basicConfig(
-    filename='../pipeline.log',
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
-)
+
 
 def init_postgres_db():
     migrator = PostgresMigrator(

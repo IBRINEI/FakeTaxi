@@ -1,3 +1,4 @@
+import pyspark
 from dotenv import load_dotenv
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import col, from_json
@@ -5,8 +6,9 @@ from pyspark.sql.types import *
 import logging
 import os
 
+
 logging.basicConfig(
-    filename='../pipeline.log',
+    filename='../../pipeline.log',
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
@@ -16,7 +18,7 @@ load_dotenv()
 KAFKA_BROKER = os.getenv('KAFKA_BROKER', 'localhost:9092')
 KAFKA_TOPIC = os.getenv('KAFKA_TOPIC', 'realtime_rides')
 
-CH_HOST = os.getenv('CH_HOST', 'localhost')
+CH_HOST = os.getenv('CH_HOST', 'clickhouse')
 CH_PORT = int(os.getenv('CH_PORT', 8123))
 CH_USER = os.getenv('CH_USER', 'default')
 CH_PASSWORD = os.getenv('CH_PASSWORD', '')
@@ -26,14 +28,18 @@ if os.name == 'nt':
     os.environ['PATH'] = os.environ['HADOOP_HOME'] + '\\bin;' + os.environ['PATH']
 
 def streaming():
+    logging.info("Initializing Spark Session...")
     spark = (SparkSession.builder
              .appName("TaxiStreamingApp")
              .config("spark.jars.packages", "org.apache.spark:spark-sql-kafka-0-10_2.13:4.1.1")
-             .config("spark.driver.bindAddress", "127.0.0.1")
-             .config("spark.driver.host", "127.0.0.1")
+             .config("spark.driver.bindAddress", "0.0.0.0")
+             .config("spark.driver.host", "0.0.0.0")
+             .config("spark.driver.memory", "512m")
+             .config("spark.executor.memory", "512m")
              .master("local[*]")
              .getOrCreate())
 
+    spark.sparkContext.setLogLevel("WARN")
     logging.info('Sark Session Launched!')
 
     cleaned_df = get_final_df(spark)
@@ -41,8 +47,10 @@ def streaming():
     start_query(spark, cleaned_df)
 
 def start_query(spark, cleaned_df):
+    logging.info(f"Starting write stream to ClickHouse at {CH_HOST}...")
     query = (cleaned_df
              .writeStream
+             .option("checkpointLocation", "/tmp/checkpoints/realtime_rides")
              .foreachBatch(write_to_clickhouse)
              .start())
     try:
@@ -96,7 +104,6 @@ def get_data_struct():
         StructField('event_timestamp', StringType(), True),
     ])
     return taxi_struct
-
 
 
 def write_to_clickhouse(batch_df, batch_id):

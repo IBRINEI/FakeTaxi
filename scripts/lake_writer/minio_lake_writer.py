@@ -6,9 +6,10 @@ from kafka import KafkaConsumer
 import boto3
 from botocore.exceptions import ClientError
 from dotenv import load_dotenv
+import sys
 
 logging.basicConfig(
-    filename='../pipeline.log',
+    stream=sys.stdout,
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
@@ -18,12 +19,12 @@ load_dotenv()
 MINIO_ENDPOINT = os.getenv('MINIO_ENDPOINT', 'http://localhost:9000')
 MINIO_ACCESS_KEY = os.getenv('MINIO_USER', 'minioadmin')
 MINIO_SECRET_KEY = os.getenv('MINIO_PASSWORD', 'minioadmin')
-BUCKET_NAME = 'taxi-raw-data'
+BUCKET_NAME = os.getenv('MINIO_BUCKET', 'taxi-raw-data')
 
 KAFKA_BROKER = os.getenv('KAFKA_BROKER', 'localhost:9092')
-TOPIC_NAME = 'rides_topic'
+TOPIC_NAME = os.getenv('KAFKA_TOPIC', 'realtime_rides')
 
-BATCH_SIZE = 50
+BATCH_SIZE = int(os.getenv('BATCH_SIZE', '50'))
 
 
 def get_s3_client():
@@ -68,9 +69,9 @@ def consume_and_save_to_lake():
                     Body=jsonl_data.encode('utf-8'),
                     ContentType='application/jsonlines'
                 )
-                print(f"Successfully saved batch of length {BATCH_SIZE} -> {file_name}")
+                logging.info(f"Successfully saved batch of length {BATCH_SIZE} -> {file_name}")
             except ClientError as e:
-                print(f"Error while writing to MinIO: {e}")
+                logging.error(f"Error while writing to MinIO: {e}")
 
             batch = []
 
