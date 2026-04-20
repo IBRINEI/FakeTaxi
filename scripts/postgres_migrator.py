@@ -59,7 +59,7 @@ class PostgresMigrator:
 if __name__ == '__main__':
     load_dotenv()
     migrator = PostgresMigrator(
-        host='localhost',
+        host='postgres',
         port=5432,
         user=os.getenv('PG_USER'),
         password=os.getenv('PG_PASSWORD'),

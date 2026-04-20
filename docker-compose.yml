@@ -98,7 +98,10 @@ services:
       - ./scripts:/opt/airflow/scripts
     command: airflow standalone
     depends_on:
-      - postgres
+      postgres:
+        condition: service_started
+      init_infra:
+        condition: service_completed_successfully
     networks:
       - lambda_net
     restart: always
@@ -151,8 +154,12 @@ services:
       - KAFKA_BROKER=taxi_kafka:29092
       - CH_HOST=clickhouse
     depends_on:
-      - kafka
-      - clickhouse
+      kafka:
+        condition: service_started
+      clickhouse:
+        condition: service_started
+      init_infra:
+          condition: service_completed_successfully # Wait for init to finish
     networks:
       - lambda_net
     restart: always
@@ -193,3 +200,23 @@ services:
     networks:
       - lambda_net
     restart: always
+
+  init_infra:
+    build:
+      context: ./airflow
+      dockerfile: Dockerfile
+    container_name: taxi_init_infra
+    env_file:
+      - .env
+    volumes:
+      - ./scripts:/opt/airflow/scripts
+    environment:
+      - PYTHONPATH=/opt/airflow/scripts
+    command: python /opt/airflow/scripts/init_db.py
+    depends_on:
+      postgres:
+        condition: service_started
+      clickhouse:
+        condition: service_started
+    networks:
+      - lambda_net

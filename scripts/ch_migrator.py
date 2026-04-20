@@ -49,7 +49,7 @@ class ClickHouseMigrator:
 
 if __name__ == '__main__':
     load_dotenv()
-    migrator = ClickHouseMigrator(host='localhost',
+    migrator = ClickHouseMigrator(host='clickhouse',
                                   port=8123,
                                   user=os.getenv('CH_USER'),
                                   password=os.getenv('CH_PASSWORD'))
