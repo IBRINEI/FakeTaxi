@@ -5,10 +5,11 @@ from pyspark.sql.functions import col, from_json
 from pyspark.sql.types import *
 import logging
 import os
+import sys
 
 
 logging.basicConfig(
-    filename='../../pipeline.log',
+    stream=sys.stdout,
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
