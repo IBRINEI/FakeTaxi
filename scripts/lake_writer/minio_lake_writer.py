@@ -27,6 +27,20 @@ TOPIC_NAME = os.getenv('KAFKA_TOPIC', 'realtime_rides')
 BATCH_SIZE = int(os.getenv('BATCH_SIZE', '50'))
 
 
+def ensure_bucket_exists(s3_client, bucket_name: str):
+    try:
+        s3_client.head_bucket(Bucket=bucket_name)
+        logging.info(f"Bucket '{bucket_name}' already exists.")
+    except Exception:
+        logging.info(f"Bucket '{bucket_name}' not found. Creating it now...")
+        try:
+            s3_client.create_bucket(Bucket=bucket_name)
+            logging.info(f"Successfully created bucket '{bucket_name}'.")
+        except Exception as e:
+            logging.error(f"Failed to create bucket '{bucket_name}': {e}")
+            raise e
+
+
 def get_s3_client():
     return boto3.client(
         's3',
@@ -39,6 +53,7 @@ def get_s3_client():
 
 def consume_and_save_to_lake():
     s3 = get_s3_client()
+    ensure_bucket_exists(s3, BUCKET_NAME)
 
     consumer = KafkaConsumer(
         TOPIC_NAME,
