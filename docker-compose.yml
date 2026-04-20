@@ -2,11 +2,21 @@ networks:
   lambda_net:
     driver: bridge
 
+x-logging: &loki-logging
+  driver: loki
+  options:
+    loki-url: "http://localhost:3100/loki/api/v1/push"
+    loki-retries: "2"
+    loki-max-backoff: "800ms"
+    loki-timeout: "1s"
+    keep-file: "true"
+
 services:
   # 1. PostgreSQL
   postgres:
     image: postgres:15
     container_name: taxi_postgres
+    logging: *loki-logging
     environment:
       POSTGRES_USER: ${PG_USER}
       POSTGRES_PASSWORD: ${PG_PASSWORD}
@@ -20,6 +30,7 @@ services:
   clickhouse:
     image: clickhouse/clickhouse-server:latest
     container_name: taxi_clickhouse
+    logging: *loki-logging
     environment:
       CLICKHOUSE_USER: ${CH_USER}
       CLICKHOUSE_PASSWORD: ${CH_PASSWORD}
@@ -33,6 +44,7 @@ services:
   minio:
     image: minio/minio:latest
     container_name: taxi_minio
+    logging: *loki-logging
     environment:
       MINIO_ROOT_USER: ${MINIO_USER}
       MINIO_ROOT_PASSWORD: ${MINIO_PASSWORD}
@@ -47,6 +59,7 @@ services:
   kafka:
     image: apache/kafka:3.7.0
     container_name: taxi_kafka
+    logging: *loki-logging
     ports:
       - "9092:9092"
     environment:
@@ -70,6 +83,7 @@ services:
       context: ./airflow
       dockerfile: Dockerfile
     container_name: taxi_airflow
+    logging: *loki-logging
     env_file:
       - .env
     environment:
@@ -94,6 +108,7 @@ services:
       context: ./scripts/lake_writer
       dockerfile: Dockerfile
     container_name: taxi_lake_writer
+    logging: *loki-logging
     env_file:
       - .env
     environment:
@@ -111,6 +126,7 @@ services:
       context: ./scripts/api_server
       dockerfile: Dockerfile
     container_name: taxi_api_server
+    logging: *loki-logging
     ports:
       - "8000:8000"
     env_file:
@@ -128,6 +144,7 @@ services:
       context: ./scripts/spark_streaming
       dockerfile: Dockerfile
     container_name: taxi_spark_streaming
+    logging: *loki-logging
     env_file:
       - .env
     environment:
@@ -145,10 +162,34 @@ services:
       context: ./scripts/taxi_emulator
       dockerfile: Dockerfile
     container_name: taxi_emulator
+    logging: *loki-logging
     environment:
       - API_URL=http://taxi_api_server:8000/api/v1/rides
     depends_on:
       - api_server
+    networks:
+      - lambda_net
+    restart: always
+
+  loki:
+    image: grafana/loki:2.9.2
+    container_name: pipeline_loki
+    ports:
+      - "3100:3100"
+    command: -config.file=/etc/loki/local-config.yaml
+    networks:
+      - lambda_net
+    restart: always
+
+  grafana:
+    image: grafana/grafana:10.2.2
+    container_name: pipeline_grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    depends_on:
+      - loki
     networks:
       - lambda_net
     restart: always
